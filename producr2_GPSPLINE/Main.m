@@ -1,0 +1,181 @@
+function [FINALLYRESULT,ResultCutPara]=Main(R1,d1,TC1,WG1)
+tic %紀錄cpu
+warning off;
+%% 
+global ncalls
+global recipe_count
+global CutNum;
+global upper;
+global lower;
+global d;
+global R;
+global TC;
+global WG;
+
+
+global step;
+global step_decial;
+step=0.1;
+step_decial=1;
+
+
+
+R=R1; %case 1 =3 ,case 2 =5
+d=d1;
+TC=TC1; % TC=Target Conflic[Moderate,Hard]
+WG=WG1;   % WG=Weight regimes[Sym,Asym,Prior]
+sol=[]; 
+upper=5; % 變數上限
+lower=-5; % 變數下限
+FINALLYRESULT=struct("Number",{},"x",{},"AWD",{},"ncalls",{});
+ResultCutPara=struct("Gmk",{},"tao",{},"X_best",{});
+%%
+CutNum=0;
+trials = 50; %50個全域最佳解
+%%50
+
+%%
+for k = 1:50
+    disp("--"+string(k))
+
+    
+    rng(100000+k);
+    
+    nk = 100;
+    r = zeros(1,3);
+    best_fn = 1000000000;
+    GB_ANS = [];
+    all_ncalls = 0;
+    c = 0;
+        for j=1:11
+        sol=[]; 
+        disp("----"+string(j))
+	    %隨機在[low_bound, up_bound]範圍中產生j個初始解
+        for i=1:d
+            sol(end+1)=round(step*randi(101,1)+lower,step_decial);
+        end
+        %rlow_bound = 500; %下界 原程式
+        %r1 = rlow_bound+C;      原程式
+        %r2 = rlow_bound+randi([0,3],1,1);  原程式
+        x0=sol;
+        recipe_count = length(x0);
+    
+        %% Problem Paramaters
+        problemname         ='P1_SIMU';
+        problemparam=[];
+        problemseed=[];
+    % 	detemintestfile     ='three_recipe_three_product_P1_deterministic';
+    % 	dtest=str2func(detemintestfile);
+    
+        %% Solver Paramaters
+        solvername       = 'cRSPLINE_v2';
+        %% 
+        %                           1  2       3     4    5   6  7     8      9  10  11  12   13    14
+        solverparam      = [1, 1, 1000, 3.5, 0.4, 2, 5, 0.002, 0.1, 1,  10, 2]; 
+				         %    15   16   17
+							         % [numfinalsols numrestarts kmax q delta ... ]
+							         % see cgRSPLINE.m for details
+							         % log file base name 
+        budget           = 1200*1.05^j;  %這是bk
+    
+        alpha            =0.05;
+    
+        logfile1='GPP1';  %紀錄每次迭代最終結果
+        logfile2='GPP2';  %錄每次迭代詳細過程
+    
+        %% call cgR-SPLINE
+        solverhandle=str2func(solvername);
+        [ResultCutPara,ncalls, x1, FO, iseed, mk] = solverhandle(x0, problemname,problemparam,...
+        problemseed,solverparam,logfile1,logfile2,budget,alpha,ResultCutPara);
+        
+        
+        %持續找到初始解為可行解為止
+        % while(1)
+        % if ncalls == -5
+	        % low_bound = 0; %下界
+	        % up_bound = 450; %上界
+	        % r = (up_bound-low_bound).*rand(1,3) + low_bound;
+	        % x0 = round(r);
+	        % [ncalls, x1, x1phat, FO, iseed, mk] = solverhandle(x0, problemname,problemparam,...
+	        % problemseed,solverparam,logfile1,logfile2,budget,alpha);
+        % else
+	        % break
+        % end
+        % end
+
+
+%if FO  == 'F'
+%         	%nk是在尋找過程中用來驗證是否為可行解的樣本數
+%         	[b G]=dtest(x1.x,nk);
+%         	if G.feasiOpt =='F';
+%         		nk = max(nk,mk);
+%         		%尋找全域最佳解
+%         	 if G.fn <= best_fn
+%         		GB_ans = G.x;
+%         		best_fn = G.fn ;
+%         	 end
+%         	end
+%         end
+        %紀錄使用總樣本數
+
+        all_ncalls = all_ncalls + ncalls;
+        [AWD]=P1_deterministic( x1.x);
+
+        if AWD < best_fn
+                GB_ANS = x1.x;
+    		    best_fn = AWD ;
+        end
+        FINALLYRESULT(11*(k-1)+j).Number=j;
+        FINALLYRESULT(11*(k-1)+j).x=GB_ANS;
+        FINALLYRESULT(11*(k-1)+j).AWD=best_fn;
+        FINALLYRESULT(11*(k-1)+j).ncalls=all_ncalls;
+        %disp("best_AWD is "+string(best_fn));
+        %disp("all_ncalls is "+string(all_ncalls));
+        
+        %記錄次數而已(確定程式有在跑，不重要)
+        c= c+1;
+        end
+        %struct("Number",{},"x",{},"APD",{},"PCM1",{},"PCM2",{});
+     
+    
+    
+%檢驗最終找到的全域最佳解是否為可行解(10^6)
+%[b G]=dtest(GB_ans,1000000);
+	
+%if G.feasiOpt =='F';
+%        %計算可行解次數
+%        count = count+1;
+%        abest_fn_table = [abest_fn_table G.fn];
+%        GB_ans_table_1 = [GB_ans_table_1 GB_ans(1)];
+%        GB_ans_table_2 = [GB_ans_table_2 GB_ans(2)];
+%        GB_ans_table_3 = [GB_ans_table_3 GB_ans(3)];
+end
+% 
+% trialresult(trial).x=G.x;
+% trialresult(trial).fn=G.fn;
+% trialresult(trial).constraint=G.constraint;
+% trialresult(trial).feasiOpt=G.feasiOpt;
+% trialresult(trial).total_num_of_simulation=ncalls;
+% visitpoint=visitpoint;
+% 
+% %每次trial的全域最佳解的目標值
+% best_fn_table = [best_fn_table best_fn];
+% 
+% %累積可行解次數(若可行每次trial+1)
+% count_table = [count_table count];
+% 
+% %每次trial的使用樣本
+% ncalls_table = [ncalls_table all_ncalls];
+% 
+% fi = strcat(num2str(k),'R-SPLINE_P133',problemname);
+% save(fi);
+% end
+
+% AP = mean(best_fn_table);
+% PFS = count/trials;
+% APF = mean(abest_fn_table);
+% ANS = mean(ncalls_table);
+% save Performance.mat FINALLYRESULT
+toc %對應tic
+end
+
